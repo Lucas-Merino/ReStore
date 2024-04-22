@@ -1,35 +1,29 @@
+/* eslint-disable @typescript-eslint/no-non-null-asserted-optional-chain */
 import { Divider, Grid, Table, TableBody, TableCell, TableContainer, TableRow, TextField, Typography } from '@mui/material'
-
 import { ChangeEvent, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom'
-import { Product } from '../../app/models/product';
-import agent from '../../app/api/agent';
 import NotFound from '../../app/errors/NotFound';
 import LoadingComponent from '../../app/layout/LoadingComponent';
-import { useStoreContext } from '../../app/context/StoreContext';
 import { LoadingButton } from '@mui/lab';
+import { useAppDispatch, useAppSelector } from '../../app/store/configureStore';
+import { addBasketItemAsync, removeBasketItemAsync } from '../basket/BasketSlice';
+import { fetchProductAsync, productSelectors } from './catalogSlice';
 
 const ProducDetails = () => {
     const {id} = useParams<{id: string}>();
-    const {basket, setBasket, removeItem} = useStoreContext();
-
-    const [product, setProduct] = useState<Product | null>(null);
-    const [loading, setLoading] = useState(true);
+    const {basket, status}= useAppSelector(state => state.basket);
+    const dispatch = useAppDispatch();
+    const {status: productStatus} = useAppSelector(state => state.catalog)
+    const product = useAppSelector(state => productSelectors.selectById(state, parseInt(id!)));
     
     const [quantity, setQuantity] = useState(0);
-    const [submitting, setSubmittting] = useState(false);
 
     const item = basket?.items.find(i => i.productId === product?.id);
 
     useEffect(() => {
-        if(item){
-            setQuantity(item.quantity);
-        }
-        id && agent.Catalog.details(Number(id))
-        .then(res => setProduct(res))
-        .catch(error => console.log(error))
-        .finally(() => setLoading(false))
-    }, [id, item])
+        if (item) setQuantity(item.quantity);
+        if (!product && id) dispatch(fetchProductAsync(parseInt(id)))
+    }, [id, item, product, dispatch])
 
     const handleInputChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         if(parseInt(event.currentTarget.value) >= 0){
@@ -40,25 +34,16 @@ const ProducDetails = () => {
     const handleUpdateCart = () => {
         if(!product) return;
         
-        setSubmittting(true)
-        
         if(!item || quantity > item.quantity){
-            const updatedQuantity = item ? quantity - item.quantity : quantity;
-            
-            agent.Basket.addItem(product.id, updatedQuantity)
-                .then(basket => setBasket(basket))
-                .catch(error => console.log(error))
-                .finally(() => setSubmittting(false))
+            const updatedQuantity = item ? quantity - item.quantity : quantity;           
+            dispatch(addBasketItemAsync({productId: product.id, quantity: updatedQuantity})) 
         } else {
             const updatedQuantity = item.quantity - quantity;
-            agent.Basket.removeItem(product.id, updatedQuantity)
-                .then(() => removeItem(product.id, updatedQuantity))
-                .catch(error => console.log(error))
-                .finally(() => setSubmittting(false))
+            dispatch(removeBasketItemAsync({productId: product?.id!, quantity: updatedQuantity}))
         }
     }
 
-    if (loading) return <LoadingComponent message='Loading product...' />
+    if (productStatus.includes('pending')) return <LoadingComponent message='Loading product...' />
  
     if(!product) return <NotFound />
     return (
@@ -110,7 +95,7 @@ const ProducDetails = () => {
                     <Grid item xs={6}>
                         <LoadingButton
                             disabled={item?.quantity === quantity || (!item && quantity === 0)}
-                            loading={submitting}
+                            loading={status.includes('pending')}
                             onClick={handleUpdateCart}
                             sx={{height: '55px'}}
                             color='primary'

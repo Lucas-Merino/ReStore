@@ -1,36 +1,17 @@
 import { Box, Button, Grid, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
 import { Add, Delete, Remove } from "@mui/icons-material";
-import { useStoreContext } from "../../app/context/StoreContext";
-import { useState } from "react";
-import agent from "../../app/api/agent";
 import { LoadingButton } from "@mui/lab";
 import BasketSummary from "./BasketSummary";
 import { Link } from "react-router-dom";
+import { useAppDispatch, useAppSelector } from "../../app/store/configureStore";
+import { addBasketItemAsync, removeBasketItemAsync } from "./BasketSlice";
 
 const BasketPage = () => {
 
-    const { basket, setBasket, removeItem } = useStoreContext();
-    const [status, setStatus] = useState({
-        loading: false,
-        name: '',
+    const {basket, status} = useAppSelector(state => state.basket)
+    const dispatch = useAppDispatch();
 
-    });
 
-    const handleAddItem = (productId: number, name: string) => {
-        setStatus({loading: true, name: name});
-        agent.Basket.addItem(productId)
-            .then(basket => setBasket(basket))
-            .catch(error => console.log(error))
-            .finally(()=> setStatus({loading: false, name: ''}))    
-    }
-
-    const handleRemoveItem = (productId: number, quantity: number = 1, name: string) => {
-        setStatus({loading: true, name: name});
-        agent.Basket.removeItem(productId, quantity)
-            .then(() => removeItem(productId, quantity))
-            .catch(error => console.log(error))
-            .finally(()=> setStatus({loading: false, name: name}))   
-    }
 
     if (!basket) return <Typography variant="h3">Your basket is empty</Typography>
     
@@ -62,16 +43,16 @@ const BasketPage = () => {
                             <TableCell align="right">${(basketItem.price / 100).toFixed(2)}</TableCell>
                             <TableCell align="center">
                                 <LoadingButton 
-                                    loading={status.loading && status.name === 'rem' + basketItem.productId} 
-                                    onClick={() => handleRemoveItem(basketItem.productId, 1, 'rem' + basketItem.productId)}
+                                    loading={status === 'pendingRemoveItem' + basketItem.productId + 'rem'} 
+                                    onClick={() => dispatch(removeBasketItemAsync({productId: basketItem.productId, quantity: 1, name: 'rem'}))}
                                     color="error" 
                                 >
                                     <Remove />
                                 </LoadingButton>
                                 {basketItem.quantity}
                                 <LoadingButton 
-                                    loading={status.loading && status.name === 'add' + basketItem.productId} 
-                                    onClick={() => handleAddItem(basketItem.productId, 'add' + basketItem.productId)}
+                                    loading={status === 'pendingAddItem' + basketItem.productId} 
+                                    onClick={() => dispatch(addBasketItemAsync({productId: basketItem.productId}))}
                                     color="success" 
                                 >
                                     <Add />
@@ -80,8 +61,8 @@ const BasketPage = () => {
                             <TableCell align="right">${((basketItem.price / 100) * basketItem.quantity).toFixed(2)}</TableCell>
                             <TableCell align="right">
                                 <LoadingButton 
-                                    loading={status.loading && status.name === 'del' + basketItem.productId} 
-                                    onClick={() => handleRemoveItem(basketItem.productId, basketItem.quantity, 'del' + basketItem.quantity)}
+                                    loading={status === 'pendingRemoveItem' + basketItem.productId + 'del'} 
+                                    onClick={() => dispatch(removeBasketItemAsync({productId: basketItem.productId, quantity: basketItem.quantity, name: 'del'}))}
                                     color="error" 
                                 >
                                     <Delete />
